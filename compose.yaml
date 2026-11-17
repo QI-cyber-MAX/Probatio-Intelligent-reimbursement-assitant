@@ -1,0 +1,252 @@
+x-app: &app
+  image: ${IRA_IMAGE_PREFIX:-probatio}-app:${RELEASE_TAG:?RELEASE_TAG is required}
+  platform: linux/amd64
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 120s
+  environment:
+    APP_SETTINGS: "${APP_SETTINGS:?APP_SETTINGS is required}"
+
+x-docling: &docling
+  type: bind
+  source: ${DOCLING_MODELS_DIR:?DOCLING_MODELS_DIR is required}
+  target: /models/docling
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-bge-tokenizer: &bge-tokenizer
+  type: bind
+  source: ${BGE_M3_TOKENIZER_DIR:?BGE_M3_TOKENIZER_DIR is required}
+  target: /models/bge-m3
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-qa-tokenizer: &qa-tokenizer
+  type: bind
+  source: ${QA_TOKENIZER_DIR:?QA_TOKENIZER_DIR is required}
+  target: /models/qa-tokenizer
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-chunking-model-tokenizer: &chunking-model-tokenizer
+  type: bind
+  source: ${CHUNKING_MODEL_TOKENIZER_DIR:?CHUNKING_MODEL_TOKENIZER_DIR is required}
+  target: /models/deepseek-v4-pro
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-reranker-tokenizer: &reranker-tokenizer
+  type: bind
+  source: ${RERANKER_TOKENIZER_DIR:?RERANKER_TOKENIZER_DIR is required}
+  target: /models/bge-reranker-v2-m3
+  read_only: true
+  bind:
+    create_host_path: false
+
+services:
+  postgres:
+    image: postgres:18.1@sha256:1090bc3a8ccfb0b55f78a494d76f8d603434f7e4553543d6e807bc7bd6bbd17f
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:8.2.3@sha256:0908d9af26bf9b985e984a40a5eb82eed229b07a3317eee6843832c3cc3a9619
+    platform: linux/amd64
+    restart: unless-stopped
+    command: [redis-server, --appendonly, "yes", --appendfsync, everysec, --maxmemory-policy, noeviction]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  elasticsearch:
+    image: ${IRA_IMAGE_PREFIX:-probatio}-elasticsearch:${RELEASE_TAG:?RELEASE_TAG is required}
+    platform: linux/amd64
+    build: deploy/elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    mem_limit: 2g
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s']
+      interval: 5s
+      timeout: 10s
+      retries: 60
+      start_period: 30s
+
+  prepare-storage:
+    image: ${IRA_IMAGE_PREFIX:-probatio}-app:${RELEASE_TAG:?RELEASE_TAG is required}
+    platform: linux/amd64
+    init: true
+    restart: "no"
+    user: "0:0"
+    command: [/usr/local/bin/prepare-storage]
+    volumes:
+      - managed-data:/data/managed
+      - parser-work:/work/parser
+      - scanner-socket:/run/clamav
+
+  scanner:
+    image: ${IRA_IMAGE_PREFIX:-probatio}-scanner:${RELEASE_TAG:?RELEASE_TAG is required}
+    platform: linux/amd64
+    build: deploy/scanner
+    restart: unless-stopped
+    depends_on:
+      prepare-storage:
+        condition: service_completed_successfully
+    environment:
+      CLAMAV_NO_FRESHCLAMD: "false"
+      CLAMAV_NO_MILTERD: "true"
+      FRESHCLAM_CHECKS: "12"
+    volumes:
+      - ${CLAMD_CONFIG_FILE:-./config/scanner/clamd.conf}:/etc/clamav/clamd.conf:ro
+      - scanner-signatures:/var/lib/clamav
+      - scanner-socket:/run/clamav
+    mem_limit: 3g
+    cpus: 2
+    healthcheck:
+      test: [CMD, clamdscan, --config-file=/etc/clamav/clamd.conf, --ping=1]
+      interval: 10s
+      timeout: 5s
+      retries: 36
+      start_period: 120s
+
+  api:
+    <<: *app
+    build:
+      context: .
+      dockerfile: deploy/app/Dockerfile
+    stop_grace_period: 180s
+    command: [uvicorn, 'intelligent_reimbursement_assitant.entrypoints.api:create_app', --factory, --host, 0.0.0.0, --port, "8000", --workers, "1"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      scanner:
+        condition: service_healthy
+      prepare-storage:
+        condition: service_completed_successfully
+    volumes:
+      - managed-data:/data/managed
+      - scanner-socket:/run/clamav
+      - ${CLAMD_CONFIG_FILE:-./config/scanner/clamd.conf}:/etc/ira/clamd.conf:ro
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/knowledge-bases', timeout=3).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  maintenance:
+    <<: *app
+    command: [reimbursement-maintenance]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ingestion-worker:
+    <<: *app
+    command: [reimbursement-ingestion]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      prepare-storage:
+        condition: service_completed_successfully
+    volumes:
+      - managed-data:/data/managed
+      - parser-work:/work/parser
+      - *docling
+      - *bge-tokenizer
+      - *chunking-model-tokenizer
+
+  qa-worker:
+    <<: *app
+    command: [reimbursement-qa]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      prepare-storage:
+        condition: service_completed_successfully
+    volumes:
+      - managed-data:/data/managed
+      - *qa-tokenizer
+      - *reranker-tokenizer
+
+  wiki-worker:
+    <<: *app
+    command: [reimbursement-wiki]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      prepare-storage:
+        condition: service_completed_successfully
+    volumes:
+      - managed-data:/data/managed
+
+  web:
+    image: ${IRA_IMAGE_PREFIX:-probatio}-web:${RELEASE_TAG:?RELEASE_TAG is required}
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: deploy/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - target: 80
+        published: "${WEB_PORT:-8080}"
+        host_ip: ${WEB_BIND_HOST:-127.0.0.1}
+    healthcheck:
+      test: [CMD, wget, --quiet, --spider, 'http://127.0.0.1/']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  initialize:
+    <<: *app
+    profiles: [tools]
+    restart: "no"
+    command: [python, -m, intelligent_reimbursement_assitant.entrypoints.initialize]
+
+volumes:
+  postgres-data:
+  redis-data:
+  elasticsearch-data:
+  managed-data:
+  parser-work:
+  scanner-signatures:
+  scanner-socket:

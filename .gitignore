@@ -1,0 +1,28 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local model resources and managed application artifacts
+/var/
+
+.ruff_cache/
+
+#local settings
+.env
+.env.*
+!.env.example
+
+#logs
+*.log
+.DS_Store
+
+# Local development configuration
+/.aws/
+/.import_linter_cache/

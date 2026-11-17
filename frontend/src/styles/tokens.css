@@ -1,0 +1,107 @@
+@font-face {
+  font-family: Manrope;
+  src: url("/fonts/ManropeV5-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: Manrope;
+  src: url("/fonts/ManropeV5-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: MiSans;
+  src: url("/fonts/MiSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: MiSans;
+  src: url("/fonts/MiSans-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+:root {
+  color-scheme: dark;
+  --gray-950: #101214;
+  --gray-900: #191d20;
+  --gray-850: #24292d;
+  --gray-925: #14181b;
+  --gray-50: #e9eceb;
+  --gray-300: #adb6b8;
+  --gray-600: #3a4348;
+  --gray-400: #7f8b90;
+  --yellow-400: #e5c94f;
+  --yellow-300: #f0d76a;
+  --gray-800: #2b3236;
+  --green-200: #a7d5af;
+  --green-950: #1d3022;
+  --amber-200: #e8cb7a;
+  --amber-950: #302a1a;
+  --red-200: #e4a5a5;
+  --red-950: #2d1f20;
+  --gray-825: #252c30;
+  --page-bg: var(--gray-950);
+  --surface-bg: var(--gray-900);
+  --surface-raised: var(--gray-850);
+  --input-bg: var(--gray-925);
+  --text-primary: var(--gray-50);
+  --text-secondary: var(--gray-300);
+  --line-subtle: var(--gray-600);
+  --control-border: var(--gray-400);
+  --action-bg: var(--yellow-400);
+  --action-fg: #141719;
+  --action-hover: var(--yellow-300);
+  --selection-bg: var(--gray-800);
+  --link-fg: var(--yellow-400);
+  --focus-ring: var(--yellow-400);
+  --success-fg: var(--green-200);
+  --success-bg: var(--green-950);
+  --warning-fg: var(--amber-200);
+  --warning-bg: var(--amber-950);
+  --danger-fg: var(--red-200);
+  --danger-bg: var(--red-950);
+  --neutral-fg: var(--gray-300);
+  --neutral-bg: var(--gray-825);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --font-brand: Manrope, MiSans, sans-serif;
+  --font-heading: MiSans, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-body: var(--font-heading);
+  --font-size-brand: 22px;
+  --font-size-title: 20px;
+  --font-size-section: 16px;
+  --font-size-body: 16px;
+  --font-size-small: 13px;
+  --font-size-code: 12px;
+  --line-height-body: 1.65;
+  --line-height-small: 1.57;
+  --control-size: 36px;
+  --header-height: 52px;
+  --sidebar-width: 208px;
+  --citation-width: 344px;
+  --conversation-width: 880px;
+  --drawer-width: 560px;
+  --radius-control: 2px;
+  --radius-badge: 4px;
+  --cut-size: 8px;
+  --duration-feedback: 120ms;
+  --duration-drawer: 200ms;
+  --layer-content: 0;
+  --layer-fixed: 10;
+  --layer-scrim: 40;
+  --layer-dialog: 50;
+  --button-primary-bg: var(--action-bg);
+  --button-primary-fg: var(--action-fg);
+  --scrim: #0009;
+}
