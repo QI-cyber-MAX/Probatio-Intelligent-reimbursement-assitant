@@ -6,7 +6,7 @@ class RegistrationFailure(Exception):
     def __init__(self, code: ErrorCode, message: str, *, retryable: bool = False):
         self.error = BusinessError[ErrorCode](
             code=code,
-            stage="D03",
+            stage="document_registration",
             retryable=retryable,
             user_message=message,
         )

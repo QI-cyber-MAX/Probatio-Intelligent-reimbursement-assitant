@@ -1,4 +1,4 @@
-"""Document registration objects and policy metadata."""
+"""Document registration, source versions and ingestion job contracts."""
 
 import re
 from datetime import date, datetime

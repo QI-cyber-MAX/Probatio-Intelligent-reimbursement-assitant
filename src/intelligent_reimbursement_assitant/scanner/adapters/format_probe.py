@@ -1,4 +1,4 @@
-"""Bounded file check execution, process lifecycle and result transport."""
+"""Bounded file checks, process lifecycle and result transport."""
 
 import logging
 import multiprocessing
@@ -34,7 +34,7 @@ def _probe_worker(
             exc.error.code,
             exc.error.user_message,
             retryable=exc.error.retryable,
-            stage="D02",
+            stage="upload_checks",
             detail_ref=exc.error.detail_ref,
         )
         output.send(("error", exc.error.model_dump_json()))
@@ -43,14 +43,14 @@ def _probe_worker(
         # reaching this process boundary is an execution failure, not proof of
         # damaged input. IO faults may be retried; unexpected bugs are not transient.
         logger.error(
-            "format_probe_failed stage=D02 temp_key=%s error_type=%s",
+            "format_probe_failed stage=upload_checks temp_key=%s error_type=%s",
             temp_key,
             type(exc).__name__,
         )
         error = UploadFailure(
             ErrorCode.UPLOAD_IO_ERROR,
             "文件检查执行失败。",
-            stage="D02",
+            stage="upload_checks",
             retryable=isinstance(exc, OSError),
         )
         output.send(("error", error.error.model_dump_json()))
@@ -76,7 +76,7 @@ class FormatProbe:
                     ErrorCode.SCAN_TIMEOUT,
                     "文件格式检查超时。",
                     retryable=True,
-                    stage="D02",
+                    stage="upload_checks",
                 )
             process.start()
             started = True
@@ -87,7 +87,7 @@ class FormatProbe:
                     ErrorCode.SCAN_TIMEOUT,
                     "文件格式检查超时。",
                     retryable=True,
-                    stage="D02",
+                    stage="upload_checks",
                 )
             status, payload = reader.recv()
             if status == "error":
@@ -96,12 +96,12 @@ class FormatProbe:
                     error.code,
                     error.user_message,
                     retryable=error.retryable,
-                    stage="D02",
+                    stage="upload_checks",
                     detail_ref=error.detail_ref,
                 )
             if status != "ok":
                 raise UploadFailure(
-                    ErrorCode.UPLOAD_IO_ERROR, "文件检查进程结果无效。", stage="D02"
+                    ErrorCode.UPLOAD_IO_ERROR, "文件检查进程结果无效。", stage="upload_checks"
                 )
             return payload
         except (OSError, EOFError) as exc:
@@ -109,7 +109,7 @@ class FormatProbe:
                 ErrorCode.UPLOAD_IO_ERROR,
                 "文件格式检查进程不可用。",
                 retryable=True,
-                stage="D02",
+                stage="upload_checks",
             ) from exc
         finally:
             if started:

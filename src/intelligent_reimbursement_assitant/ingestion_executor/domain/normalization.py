@@ -1,4 +1,4 @@
-"""Text normalization; structure and source locations belong to parsed documents."""
+"""Text normalization preserving parser-provided structure and source locations."""
 
 import unicodedata
 from typing import Annotated

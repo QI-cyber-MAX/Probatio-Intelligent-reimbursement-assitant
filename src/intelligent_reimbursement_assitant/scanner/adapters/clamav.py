@@ -218,12 +218,12 @@ class ClamAVScanner:
             with os.fdopen(fd, "w", encoding="utf-8") as target:
                 json.dump(record, target, ensure_ascii=True)
         except OSError as exc:
-            logger.error("scan_diagnostic_write_failed stage=D02 detail_ref=%s", ref)
+            logger.error("scan_diagnostic_write_failed stage=upload_checks detail_ref=%s", ref)
             if report is not None and report.verdict == ScanVerdict.CLEAN:
                 raise UploadFailure(
                     ErrorCode.UPLOAD_IO_ERROR,
                     "无法保存扫描诊断。",
-                    stage="D02",
+                    stage="upload_checks",
                     retryable=True,
                     detail_ref=ref,
                 ) from exc
@@ -252,7 +252,7 @@ class ClamAVScanner:
                         raise UploadFailure(
                             ErrorCode.UPLOAD_IO_ERROR,
                             "无法读取待扫描文件。",
-                            stage="D02",
+                            stage="upload_checks",
                             retryable=True,
                         ) from exc
                     if not block:
@@ -266,7 +266,7 @@ class ClamAVScanner:
             self._diagnostic(
                 ref,
                 {
-                    "stage": "D02",
+                    "stage": "upload_checks",
                     "temp_key": upload.temp_key,
                     "detail_ref": ref,
                     "error_code": exc.error.code,
@@ -279,7 +279,7 @@ class ClamAVScanner:
             raise UploadFailure(
                 exc.error.code,
                 exc.error.user_message,
-                stage="D02",
+                stage="upload_checks",
                 retryable=exc.error.retryable,
                 detail_ref=ref,
             ) from exc
@@ -307,7 +307,7 @@ class ClamAVScanner:
         self._diagnostic(
             ref,
             {
-                "stage": "D02",
+                "stage": "upload_checks",
                 "temp_key": upload.temp_key,
                 "detail_ref": ref,
                 "elapsed_ms": int((time.monotonic() - started) * 1000),
@@ -320,7 +320,7 @@ class ClamAVScanner:
             report,
         )
         logger.info(
-            "scan_completed stage=D02 detail_ref=%s temp_key=%s verdict=%s elapsed_ms=%d",
+            "scan_completed stage=upload_checks detail_ref=%s temp_key=%s verdict=%s elapsed_ms=%d",
             ref,
             upload.temp_key,
             report.verdict,

@@ -1,4 +1,4 @@
-"""Evidence assessment joins all item requests and accounting before one ordered state update.
+"""Join all evidence assessment requests and accounting before one ordered state update.
 
 The caller saves the returned batch before routing; persisted batches are reused
 by execution records, never by treating a nonempty assessments array as a retry key.

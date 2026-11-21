@@ -1,4 +1,4 @@
-"""Read-only file format, structure and recursive resource checks on byte streams."""
+"""Read-only format, structure and recursive resource checks on byte streams."""
 
 import posixpath
 import struct
@@ -710,7 +710,7 @@ def check_document(source: BinaryIO, policy: UploadPolicy) -> str:
             exc.error.code,
             exc.error.user_message,
             retryable=exc.error.retryable,
-            stage="D02",
+            stage="upload_checks",
             detail_ref=exc.error.detail_ref,
         ) from exc
     except (
@@ -725,4 +725,6 @@ def check_document(source: BinaryIO, policy: UploadPolicy) -> str:
         EOFError,
     ) as exc:
         failure = _invalid()
-        raise UploadFailure(failure.error.code, failure.error.user_message, stage="D02") from exc
+        raise UploadFailure(
+            failure.error.code, failure.error.user_message, stage="upload_checks"
+        ) from exc

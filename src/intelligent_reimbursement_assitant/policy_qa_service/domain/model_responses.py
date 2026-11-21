@@ -47,6 +47,30 @@ class FactsResponse(BaseModel):
     facts: list[FactResponse]
 
 
+class ConversationTextFactResponse(TextFactResponse):
+    source: int
+
+
+class ConversationNumberFactResponse(NumberFactResponse):
+    source: int
+
+
+class ConversationDateFactResponse(DateFactResponse):
+    source: int
+
+
+ConversationFactResponse = Annotated[
+    ConversationTextFactResponse | ConversationNumberFactResponse | ConversationDateFactResponse,
+    Field(discriminator="kind"),
+]
+
+
+class ConversationFactsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    facts: list[ConversationFactResponse]
+
+
 class ItemResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 

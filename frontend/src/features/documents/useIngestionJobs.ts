@@ -86,13 +86,13 @@ export function useIngestionJobs(
   );
   const jobs = useMemo(
     () =>
-      documents.flatMap((doc) =>
-        doc.versions.map((source) => {
-          const initial = source.latest_job;
-          const current = tracking[initial.job_id];
-          return { ...initial, ...current?.view, ...current?.status };
-        }),
-      ),
+      [...new Map([
+        ...Object.values(tracking).flatMap((entry) => entry.view ? [entry.view] : []),
+        ...documents.flatMap((doc) => doc.versions.map((source) => source.latest_job)),
+      ].map((initial) => {
+        const current = tracking[initial.job_id];
+        return [initial.job_id, { ...initial, ...current?.view, ...current?.status }] as const;
+      })).values()],
     [documents, tracking],
   );
   const active = jobs
@@ -113,8 +113,11 @@ export function useIngestionJobs(
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
-      await Promise.all(
-        overflowKey.split(",").map(async (id) => {
+      const ids = overflowKey.split(",");
+      let next = 0;
+      await Promise.all(Array.from({ length: Math.min(4, ids.length) }, async () => {
+        while (next < ids.length && !controller.signal.aborted) {
+          const id = ids[next++]!;
           try {
             const value = await getIngestionJob(id, controller.signal);
             if (!controller.signal.aborted) {
@@ -122,11 +125,10 @@ export function useIngestionJobs(
               connection(id, "closed");
             }
           } catch (error) {
-            if (!controller.signal.aborted)
-              connection(id, "recovering", errorMessage(error));
+            if (!controller.signal.aborted) connection(id, "recovering", errorMessage(error));
           }
-        }),
-      );
+        }
+      }));
       if (!controller.signal.aborted) timer = setTimeout(poll, 5000);
     };
     void poll();

@@ -1,4 +1,4 @@
-"""Upload reception and file checks, before business registration or queuing."""
+"""Receive and check uploads before business registration or queuing."""
 
 import logging
 import time
@@ -64,12 +64,12 @@ class UploadIntake:
                 raise UploadFailure(
                     ErrorCode.SCAN_TIMEOUT,
                     "文件检查与扫描超时，请重试。",
-                    stage="D02",
+                    stage="upload_checks",
                     retryable=True,
                     detail_ref=detail_ref,
                 )
             logger.info(
-                "upload_checked stage=D02 temp_key=%s detail_ref=%s size_bytes=%d elapsed_ms=%d",
+                "upload_checked stage=upload_checks temp_key=%s detail_ref=%s size_bytes=%d elapsed_ms=%d",
                 temp_key,
                 detail_ref,
                 size,
@@ -80,7 +80,7 @@ class UploadIntake:
             self.discard_after_failure(temp_key)
             if isinstance(exc, UploadFailure):
                 logger.warning(
-                    "upload_check_failed stage=D02 temp_key=%s detail_ref=%s code=%s elapsed_ms=%d",
+                    "upload_check_failed stage=upload_checks temp_key=%s detail_ref=%s code=%s elapsed_ms=%d",
                     temp_key,
                     detail_ref,
                     exc.error.code,
@@ -89,7 +89,7 @@ class UploadIntake:
                 raise UploadFailure(
                     exc.error.code,
                     exc.error.user_message,
-                    stage="D02",
+                    stage="upload_checks",
                     retryable=exc.error.retryable,
                     detail_ref=exc.error.detail_ref,
                 ) from exc
@@ -127,10 +127,12 @@ class UploadIntake:
                 "扫描未能完整完成，请检查扫描环境后重试。",
                 True,
             )
-        raise UploadFailure(code, message, stage="D02", retryable=retryable, detail_ref=detail_ref)
+        raise UploadFailure(
+            code, message, stage="upload_checks", retryable=retryable, detail_ref=detail_ref
+        )
 
     def discard_after_failure(self, temp_key: str) -> None:
         try:
             self.store.discard(temp_key)
         except OSError:
-            logger.error("quarantine_cleanup_failed stage=D02 temp_key=%s", temp_key)
+            logger.error("quarantine_cleanup_failed stage=upload_checks temp_key=%s", temp_key)

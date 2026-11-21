@@ -1,4 +1,4 @@
-"""Structure-first document chunking. All offsets and hierarchy below are local to this run."""
+"""Structure-first chunking with offsets and hierarchy local to this run."""
 
 import re
 from collections.abc import Callable, Iterator

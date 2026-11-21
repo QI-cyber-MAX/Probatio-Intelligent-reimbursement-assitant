@@ -12,7 +12,11 @@ wheels/
 # Local model resources and managed application artifacts
 /var/
 
+# Testing
+.pytest_cache/
 .ruff_cache/
+.coverage
+htmlcov/
 
 #local settings
 .env
@@ -23,6 +27,3 @@ wheels/
 *.log
 .DS_Store
 
-# Local development configuration
-/.aws/
-/.import_linter_cache/

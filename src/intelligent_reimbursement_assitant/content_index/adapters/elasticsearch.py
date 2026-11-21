@@ -412,7 +412,7 @@ class ElasticsearchContentIndexAdapter:
                 )
 
     def create_index(self) -> None:
-        """Explicit deployment action; never called by an ingestion task."""
+        """Explicit deployment/test action; never called by an ingestion task."""
         self.client.indices.create(index=self.index_name, body=content_index_definition())
 
     def write_records(self, records: IndexRecordBatch) -> None:

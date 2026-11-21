@@ -1549,3 +1549,47 @@ blockquote {
     flex: 1 1 auto;
   }
 }
+
+.upload-actions,
+.batch-row-heading,
+.batch-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+.batch-summary {
+  margin-block: var(--space-4);
+}
+.batch-rows {
+  display: grid;
+  gap: var(--space-4);
+}
+.batch-row {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--line-subtle);
+}
+.batch-row-heading h3 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-body);
+}
+.batch-selection {
+  margin-block: var(--space-4);
+}
+.batch-selection label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.batch-selection input {
+  width: 20px;
+  min-height: 20px;
+}
+@media (max-width: 767px) {
+  .batch-selection label {
+    min-height: 44px;
+  }
+}

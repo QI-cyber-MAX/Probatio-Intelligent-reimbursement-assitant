@@ -17,7 +17,9 @@ from intelligent_reimbursement_assitant.policy_qa_service.domain.model_inputs im
 )
 from intelligent_reimbursement_assitant.policy_qa_service.domain.model_responses import (
     ClarificationUpdateResponse,
+    ConversationFactsResponse,
     DateFactResponse,
+    FactResponse,
     FactsResponse,
     NumberFactResponse,
     PlanResponse,
@@ -61,6 +63,30 @@ def assemble_user_facts(
                 source_message_id=source_message_id,
             )
         )
+    return facts, values
+
+
+def assemble_conversation_facts(
+    response: ConversationFactsResponse,
+    user_sources: dict[int, UUID],
+) -> tuple[list[UserFact], dict[str, FactValue]]:
+    grouped: dict[UUID, list[FactResponse]] = {}
+    for index, fact in enumerate(response.facts):
+        try:
+            source_message_id = user_sources[fact.source]
+        except KeyError as error:
+            raise ValueError(
+                f"facts[{index}].source must select a user question or clarification reply"
+            ) from error
+        grouped.setdefault(source_message_id, []).append(fact)
+    facts = []
+    values: dict[str, FactValue] = {}
+    for source_message_id, source_facts in grouped.items():
+        extracted, source_values = assemble_user_facts(
+            source_message_id, FactsResponse(facts=source_facts)
+        )
+        facts.extend(extracted)
+        values.update(source_values)
     return facts, values
 
 
@@ -221,13 +247,11 @@ def apply_clarification_update(
 
 
 def fact_extraction_input(
-    messages: list[dict], target_index: int, reference_time: datetime, business_timezone: ZoneInfo
+    messages: list[dict], reference_time: datetime, business_timezone: ZoneInfo
 ) -> dict:
-    projected = [dict(message) for message in messages]
-    projected[target_index]["target"] = True
     return share_texts(
         {
-            "messages": projected,
+            "messages": messages,
             "reference_time": reference_time.isoformat(),
             "business_timezone": str(business_timezone),
         }

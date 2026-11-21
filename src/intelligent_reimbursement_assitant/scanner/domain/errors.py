@@ -13,7 +13,9 @@ class UploadFailure(Exception):
         message: str,
         *,
         retryable: bool = False,
-        stage: Literal["D01", "D02", "D03"] = "D01",
+        stage: Literal[
+            "upload_reception", "upload_checks", "document_registration"
+        ] = "upload_reception",
         detail_ref: str | None = None,
     ):
         self.error = BusinessError[ErrorCode](

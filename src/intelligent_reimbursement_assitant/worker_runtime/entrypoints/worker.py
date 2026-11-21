@@ -1,4 +1,4 @@
-"""Composition entry for a real executor; deliberately no placeholder worker CLI."""
+"""Compose the queue consumer, worker runtime and injected workflow executor."""
 
 import asyncio
 import signal

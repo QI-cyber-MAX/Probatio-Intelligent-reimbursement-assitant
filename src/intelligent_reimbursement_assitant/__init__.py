@@ -1,2 +1,2 @@
 def main() -> None:
-    print("Hello from intelligent-reimbursement-assitant!")
+    print("Probatio — Agentic RAG reimbursement assistant")

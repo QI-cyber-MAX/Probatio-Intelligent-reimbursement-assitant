@@ -351,7 +351,7 @@ class DocumentIngestionService:
                 exc.error.code,
                 exc.error.user_message,
                 retryable=exc.error.retryable,
-                stage="D03",
+                stage="document_registration",
                 detail_ref=exc.error.detail_ref,
             ) from exc
         accepted_upload = AcceptedUpload(

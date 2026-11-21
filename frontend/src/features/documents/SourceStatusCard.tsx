@@ -4,7 +4,6 @@ import {
   type DocumentSourceView,
   type IngestionAccepted,
   type IngestionJobView,
-  type IngestionStage,
 } from "../../api/contracts";
 import {
   cancelIngestion,
@@ -23,17 +22,8 @@ import { StatusBadge } from "../../ui/StatusBadge";
 import { createUuid } from "../../uuid";
 import type { Tracking } from "./useIngestionJobs";
 import { SourceMetadataForm } from "./SourceMetadataForm";
-import { statusLabels } from "./job-labels";
+import { stageLabels, statusLabels } from "./job-labels";
 
-const stageLabels: Record<IngestionStage, string> = {
-  REGISTERED: "已登记",
-  PARSING: "解析文档",
-  NORMALIZING: "归一化结构",
-  CHUNKING: "分块",
-  EMBEDDING: "生成向量",
-  INDEXING: "写入索引",
-  PUBLISHING: "发布",
-};
 const dateTime = (value: string) =>
   new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "medium",

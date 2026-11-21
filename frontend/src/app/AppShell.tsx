@@ -32,6 +32,9 @@ import { RecentConversations } from "./RecentConversations";
 
 export function AppShell() {
   const [route, setRoute] = useState(readRoute);
+  const leaveGuard = useRef<(() => boolean) | null>(null);
+  const currentUrl = useRef(window.location.pathname + window.location.search);
+  const setLeaveGuard = useCallback((guard: (() => boolean) | null) => { leaveGuard.current = guard; }, []);
   const [bases, setBases] = useState<KnowledgeBaseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -56,6 +59,8 @@ export function AppShell() {
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
   const navigate = useCallback((url: string) => {
     const previous = readRoute();
+    if (url !== currentUrl.current && leaveGuard.current && !leaveGuard.current()) return;
+    currentUrl.current = url;
     window.history.pushState(null, "", url);
     const next = readRoute();
     if (
@@ -73,6 +78,11 @@ export function AppShell() {
   }, []);
   useEffect(() => {
     const update = () => {
+      if (leaveGuard.current && !leaveGuard.current()) {
+        window.history.pushState(null, "", currentUrl.current);
+        return;
+      }
+      currentUrl.current = window.location.pathname + window.location.search;
       setRoute(readRoute());
       setChatKey((value) => value + 1);
       setCitation(null);
@@ -315,6 +325,7 @@ export function AppShell() {
           <LibraryPage
             key={selected.kb_id}
             base={selected}
+            setLeaveGuard={setLeaveGuard}
             navigateToChat={() => navigate(pageUrl("chat", selected.kb_id))}
           />
         ) : (

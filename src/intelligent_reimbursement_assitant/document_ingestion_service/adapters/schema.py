@@ -1,4 +1,4 @@
-"""Document registration tables, with logical identity and composite source identity constraints."""
+"""Document tables with logical identity and composite source identity constraints."""
 
 from sqlalchemy import (
     Column,

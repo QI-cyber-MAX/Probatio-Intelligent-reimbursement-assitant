@@ -3,7 +3,6 @@ import type {
   DocumentItem,
   IngestionAccepted,
   KnowledgeBaseItem,
-  VersionStatus,
 } from "../../api/contracts";
 import { uploadPolicy } from "../../api/documents";
 import { ApiError } from "../../api/http";
@@ -11,6 +10,8 @@ import { Dialog } from "../../ui/Dialog";
 import { ErrorNotice } from "../../ui/ErrorNotice";
 import { Field, FieldErrors } from "../../ui/Field";
 import { Icon } from "../../ui/Icon";
+import { PolicyRegistrationFields } from "./PolicyRegistrationFields";
+import { emptyRegistration, policyFormData, resolveRegistration, validateRegistration, type PolicyRegistration } from "./policy-registration";
 
 export function UploadPolicyForm({
   base,
@@ -25,26 +26,15 @@ export function UploadPolicyForm({
   onAccepted(value: IngestionAccepted): void;
   onReload(): void;
 }) {
-  const [mode, setMode] = useState<"new" | "existing">("new");
-  const [documentId, setDocumentId] = useState(
-    candidates[0]?.document_id ?? "",
-  );
-  const [title, setTitle] = useState("");
-  const [issuer, setIssuer] = useState("");
-  const [version, setVersion] = useState<VersionStatus | "">("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const [draft, setDraft] = useState(() => emptyRegistration(candidates));
+  const pending = useRef<{ file: File; registration: PolicyRegistration } | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const existing = candidates.find(
-    (candidate) => candidate.document_id === documentId,
-  );
-  const actualIssuer = mode === "existing" ? (existing?.issuer ?? "") : issuer;
-  const unknown = error instanceof ApiError && error.outcomeUnknown;
+  const unknown = !!pending.current;
   function pick(files: FileList | null) {
     if (!files?.length) return;
     if (files.length !== 1) {
@@ -61,34 +51,23 @@ export function UploadPolicyForm({
   function drop(event: DragEvent) {
     event.preventDefault();
     setDragging(false);
-    if (!busy) pick(event.dataTransfer.files);
+    if (!busy && !pending.current) pick(event.dataTransfer.files);
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
-    const next: Record<string, string> = {};
-    if (mode === "new" && !title.trim()) next.title = "请填写制度名。";
-    if (mode === "existing" && !existing) next.document_id = "请选择已有制度。";
-    if (!actualIssuer.trim()) next.issuer = "请填写发文单位。";
-    if (mode === "existing" && !version) next.version_status = "请选择历史版本或新版本。";
-    if (from && to && to <= from)
-      next.effective_to = "截止日期须晚于生效日期。";
+    const next = pending.current ? {} : validateRegistration(draft, candidates);
     if (!file) next.file = "请选择制度文件。";
     setErrors(next);
     if (Object.keys(next).length) return;
-    const body = new FormData();
-    body.append("file", file!);
-    body.append("issuer", actualIssuer.trim());
-    body.append("version_status", mode === "new" ? "CURRENT" : version);
-    if (from) body.append("effective_from", from);
-    if (to) body.append("effective_to", to);
-    if (mode === "new") body.append("title", title.trim());
-    else body.append("document_id", documentId);
+    const submission = pending.current ?? { file: file!, registration: resolveRegistration(draft, candidates) };
+    const body = policyFormData(submission.file, submission.registration);
     setBusy(true);
     setError(null);
     try {
       onAccepted(await uploadPolicy(base.kb_id, body));
     } catch (failure) {
+      if (failure instanceof ApiError && failure.outcomeUnknown) pending.current = submission;
       setError(failure);
       if (failure instanceof ApiError) {
         const fields = Object.fromEntries(
@@ -122,118 +101,8 @@ export function UploadPolicyForm({
         <Field id="upload-kb" label="目标知识库">
           <input id="upload-kb" value={base.name} readOnly />
         </Field>
-        <fieldset disabled={busy} className="mode-switch">
-          <legend>制度登记方式</legend>
-          <label>
-            <input
-              type="radio"
-              name="mode"
-              value="new"
-              checked={mode === "new"}
-              onChange={() => setMode("new")}
-            />
-            新制度
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="mode"
-              value="existing"
-              checked={mode === "existing"}
-              disabled={!candidates.length}
-              onChange={() => setMode("existing")}
-            />
-            已有制度
-          </label>
-        </fieldset>
-        <fieldset disabled={busy} className="form-fields">
-          {mode === "new" ? (
-            <Field id="title" label="制度名（必填）" error={errors.title}>
-              <input
-                id="title"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="填写规范制度名，而非文件名"
-                aria-invalid={!!errors.title}
-                aria-describedby={described("title")}
-              />
-            </Field>
-          ) : (
-            <Field
-              id="document_id"
-              label="已有制度（必填）"
-              error={errors.document_id}
-            >
-              <select
-                id="document_id"
-                value={documentId}
-                onChange={(event) => setDocumentId(event.target.value)}
-                aria-invalid={!!errors.document_id}
-                aria-describedby={described("document_id")}
-              >
-                {candidates.map((candidate) => (
-                  <option
-                    key={candidate.document_id}
-                    value={candidate.document_id}
-                  >
-                    {candidate.title} · {candidate.issuer}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          )}
-          <Field id="issuer" label="发文单位（必填）" error={errors.issuer}>
-            <input
-              id="issuer"
-              value={actualIssuer}
-              readOnly={mode === "existing"}
-              onChange={(event) => setIssuer(event.target.value)}
-              aria-invalid={!!errors.issuer}
-              aria-describedby={described("issuer")}
-            />
-          </Field>
-          {mode === "existing" && (
-            <Field id="version_status" label="原件版本（必填）" error={errors.version_status}>
-              <select id="version_status" value={version} aria-invalid={!!errors.version_status} aria-describedby={described("version_status")}
-                onChange={(event) => setVersion(event.target.value as VersionStatus | "")}>
-                <option value="">请选择版本</option>
-                <option value="CURRENT">新版本</option>
-                <option value="HISTORICAL">历史版本</option>
-              </select>
-            </Field>
-          )}
-          <div className="date-fields">
-            <Field
-              id="effective_from"
-              label="生效日期（选填）"
-              hint="留空时按原文提取生效日期"
-              error={errors.effective_from}
-            >
-              <input
-                type="date"
-                id="effective_from"
-                value={from}
-                onChange={(event) => setFrom(event.target.value)}
-                aria-invalid={!!errors.effective_from}
-                aria-describedby={described("effective_from", true)}
-              />
-            </Field>
-            <Field
-              id="effective_to"
-              label="截止日期（选填）"
-              hint="从该日起不再适用"
-              error={errors.effective_to}
-            >
-              <input
-                type="date"
-                id="effective_to"
-                value={to}
-                onChange={(event) => setTo(event.target.value)}
-                aria-invalid={!!errors.effective_to}
-                aria-describedby={described("effective_to", true)}
-              />
-            </Field>
-          </div>
+        <PolicyRegistrationFields draft={draft} candidates={candidates} errors={errors} disabled={busy || !!pending.current} onChange={setDraft} />
+        <fieldset disabled={busy || !!pending.current} className="form-fields">
           <Field
             id="file"
             label="制度文件（必填）"

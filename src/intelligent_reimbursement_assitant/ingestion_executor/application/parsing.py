@@ -275,7 +275,7 @@ class IngestionExecutor:
     ) -> tuple[ParsedDocument, ArtifactRef, PolicyDate | None] | None:
         stage = source["stage"]
         if stage not in {IngestionStage.REGISTERED, IngestionStage.PARSING}:
-            return None  # The full executor continues normalization without reopening the parse artifact.
+            return None  # The executor resumes later stages from their own artifacts.
         if stage == IngestionStage.REGISTERED:
             if not await _settled_work(
                 lambda: self._save(ctx, stage, IngestionStage.PARSING, None)
@@ -700,7 +700,7 @@ class IngestionExecutor:
         extracted: PolicyDate | None = None,
         restoring: bool,
     ) -> None:
-        """Persist embedding batches and hand queryable records to publication, without publishing."""
+        """Persist embedding batches and hand queryable records to policy publication."""
         try:
             if source is None:
                 source = await _settled_work(lambda: self._load_source(ctx))

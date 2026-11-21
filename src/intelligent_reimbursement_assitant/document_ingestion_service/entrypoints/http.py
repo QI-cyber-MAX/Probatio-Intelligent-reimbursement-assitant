@@ -1,4 +1,4 @@
-"""Document registration HTTP routes; business registration follows the single parsed/scanned file."""
+"""Document HTTP routes; registration follows multipart parsing and file scanning."""
 
 import asyncio
 import re
@@ -179,7 +179,7 @@ def install_document_ingestion(
             after if last_event_id is None else last_event_id,
             repository=events,
             read_head=service.read_event_head,
-            stage="D03",
+            stage="document_registration",
         )
 
     @app.post(UPLOAD_PATH, status_code=202)

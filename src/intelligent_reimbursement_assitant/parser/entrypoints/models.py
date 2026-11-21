@@ -11,7 +11,7 @@ from docling.utils.model_downloader import download_models
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Prepare CPU layout/table/Chinese-English OCR models"
+        description="Prepare Docling CPU layout/table/Chinese-English OCR models"
     )
     parser.add_argument("directory", type=Path)
     args = parser.parse_args()

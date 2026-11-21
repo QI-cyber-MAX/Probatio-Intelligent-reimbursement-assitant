@@ -1,4 +1,4 @@
-"""Reusable FastAPI request entry, without inventing a business upload API."""
+"""Multipart parsing and scanned-file handoff under upload admission limits."""
 
 import asyncio
 import logging
@@ -67,7 +67,7 @@ class _CompleteMultipartParser(MultiPartParser):
             try:
                 file.close()
             except OSError:
-                logger.error("framework_upload_cleanup_failed stage=D01")
+                logger.error("framework_upload_cleanup_failed stage=upload_reception")
 
     async def parse(self) -> FormData:
         try:
@@ -100,7 +100,7 @@ def _close_form(form: FormData) -> None:
                 item.file.close()
             except OSError as exc:
                 close_error = exc
-                logger.error("framework_upload_cleanup_failed stage=D01")
+                logger.error("framework_upload_cleanup_failed stage=upload_reception")
     if close_error is not None and primary_error is None:
         raise UploadFailure(
             ErrorCode.UPLOAD_IO_ERROR, "上传临时文件关闭失败。", retryable=True
@@ -112,7 +112,7 @@ async def parsed_upload_input(
     request: Request, *, text_fields: set[str]
 ) -> AsyncIterator[tuple[UploadFile, dict[str, str]]]:
     """Parse once under admission limits; the caller interprets business text."""
-    if "d01.receive_deadline" not in request.scope or "d01.upload_policy" not in request.scope:
+    if "upload.receive_deadline" not in request.scope or "upload.policy" not in request.scope:
         raise RuntimeError("parsed_upload_input requires UploadBodyLimit on this path")
     media, _ = parse_options_header(request.headers.get("content-type"))
     if media != b"multipart/form-data":
@@ -155,14 +155,14 @@ async def parsed_upload_input(
 async def scanned_upload_input(
     request: Request, intake: UploadIntake, file: UploadFile
 ) -> AsyncIterator[tuple[QuarantinedUpload, ScanReport]]:
-    """Close the framework spool before document registration; always clean quarantine after use."""
+    """Close the framework spool before registration; clean quarantine after use."""
     worker = asyncio.create_task(
         asyncio.to_thread(
             intake.receive_and_scan,
             file.file,
             cast(str, file.filename),
-            request.scope["d01.upload_policy"],
-            deadline=request.scope["d01.receive_deadline"],
+            request.scope["upload.policy"],
+            deadline=request.scope["upload.receive_deadline"],
         )
     )
     upload: QuarantinedUpload | None = None
@@ -184,7 +184,7 @@ async def scanned_upload_input(
         try:
             file.file.close()
         except OSError as exc:
-            logger.error("framework_upload_cleanup_failed stage=D01")
+            logger.error("framework_upload_cleanup_failed stage=upload_reception")
             raise UploadFailure(
                 ErrorCode.UPLOAD_IO_ERROR, "上传临时文件关闭失败。", retryable=True
             ) from exc

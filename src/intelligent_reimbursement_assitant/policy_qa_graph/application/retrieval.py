@@ -1,4 +1,4 @@
-"""Tool execution, per-item fusion/reranking and complete read-window admission."""
+"""Retrieval tool execution, per-item fusion/reranking and read-window admission."""
 
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping

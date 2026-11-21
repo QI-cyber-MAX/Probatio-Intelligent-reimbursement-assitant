@@ -19,8 +19,8 @@ class UploadBodyLimit:
     Paths may be literals or Starlette route templates such as
     ``/knowledge-bases/{kb_id}/documents``. Match the whole request path.
 
-    The caller validates its knowledge base before receiving the upload. It also performs
-    upload reception, checks and document registration inside this guarded call.
+    The caller validates the knowledge base before receiving the file; reception,
+    scanning and document registration all run inside this guarded call.
     """
 
     def __init__(
@@ -86,8 +86,8 @@ class UploadBodyLimit:
                 ) from exc
             acquired = True
             deadline = time.monotonic() + self.reception_timeout_seconds
-            scope["d01.receive_deadline"] = deadline
-            scope["d01.upload_policy"] = self.policy
+            scope["upload.receive_deadline"] = deadline
+            scope["upload.policy"] = self.policy
             total = 0
 
             async def limited_receive() -> Message:

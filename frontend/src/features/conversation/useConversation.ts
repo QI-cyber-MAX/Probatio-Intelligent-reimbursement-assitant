@@ -175,7 +175,7 @@ export function useConversation(
           firstHistory.current = false;
         }
         setHistoryReady(true);
-        // Local acceptance refreshes this effect, aborting a pre-acceptance read.
+        // Accepting a question reruns this effect and aborts the preceding history read.
         setActiveId(page.active_job_id);
       })
       .catch((failure) => {

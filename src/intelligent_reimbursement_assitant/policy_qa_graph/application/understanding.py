@@ -1,4 +1,4 @@
-"""Question understanding and clarification updates for the QA graph."""
+"""Question understanding and clarification nodes with injected model and storage ports."""
 
 import asyncio
 import logging
@@ -47,13 +47,13 @@ from intelligent_reimbursement_assitant.policy_qa_service.domain.model_inputs im
 from intelligent_reimbursement_assitant.policy_qa_service.domain.model_responses import (
     ClarificationResponse,
     ClarificationUpdateResponse,
+    ConversationFactsResponse,
     FactsResponse,
     PlanResponse,
 )
 from intelligent_reimbursement_assitant.policy_qa_service.domain.models import (
     ClarificationReply,
     ClarificationRequest,
-    FactValue,
     QAInput,
     TaskPlan,
 )
@@ -73,6 +73,7 @@ from intelligent_reimbursement_assitant.policy_qa_service.domain.tool_calling im
 )
 from intelligent_reimbursement_assitant.policy_qa_service.domain.understanding import (
     apply_clarification_update,
+    assemble_conversation_facts,
     assemble_task_plan,
     assemble_user_facts,
     build_date_scopes,
@@ -158,29 +159,18 @@ async def understand(
             else None,
         )
 
-    sources = []
-    for message in history:
-        if isinstance(message.payload, QAInput):
-            sources.append((message.message_id, message.payload.question))
-        elif isinstance(message.payload, ClarificationReply):
-            sources.append((message.message_id, message.payload.text))
-    sources.append((state["message_id"], state["input"].question))
-    for message in replies:
-        if isinstance(message.payload, ClarificationReply):
-            sources.append((message.message_id, message.payload.text))
-    facts = []
-    values: dict[str, FactValue] = {}
-    for message_id in dict(sources):
-        extracted, new_values = await call(
-            FACTS,
-            fact_extraction_input(
-                messages, sources_by_id[message_id], state["reference_time"], business_timezone
-            ),
-            FactsResponse,
-            lambda response, mid=message_id: assemble_user_facts(mid, response),
-        )
-        facts.extend(extracted)
-        values.update(new_values)
+    user_sources = {
+        index: message_id
+        for message_id, index in sources_by_id.items()
+        if message_id == state["message_id"]
+        or isinstance(known[message_id].payload, (QAInput, ClarificationReply))
+    }
+    facts, values = await call(
+        FACTS,
+        fact_extraction_input(messages, state["reference_time"], business_timezone),
+        ConversationFactsResponse,
+        lambda response: assemble_conversation_facts(response, user_sources),
+    )
     scopes = build_date_scopes(facts, values)
 
     wiki_overview = None

@@ -42,13 +42,13 @@ from intelligent_reimbursement_assitant.policy_qa_service.domain.models import (
 from intelligent_reimbursement_assitant.policy_qa_service.ports.repository import QARepository
 
 
-def _unavailable(stage: str = "Q00") -> QAFailure:
+def _unavailable(stage: str = "qa") -> QAFailure:
     return QAFailure(
         Code.QA_UNAVAILABLE, "问答服务暂不可用，请稍后重试。", retryable=True, stage=stage
     )
 
 
-def _unknown(stage: str = "Q00") -> QAFailure:
+def _unknown(stage: str = "qa") -> QAFailure:
     return QAFailure(
         Code.QA_ACCEPTANCE_OUTCOME_UNKNOWN,
         "受理结果尚未确认，请保留原消息 ID 等待核对。",

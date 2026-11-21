@@ -25,7 +25,7 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     UV_CACHE_DIR=/root/.cache/uv uv sync --locked --no-dev --no-install-project
 COPY src/ src/
-COPY README.md alembic.ini ./
+COPY alembic.ini ./
 COPY migrations/ migrations/
 COPY deploy/app/prepare-storage.sh /usr/local/bin/prepare-storage
 RUN --mount=type=cache,target=/root/.cache/uv \

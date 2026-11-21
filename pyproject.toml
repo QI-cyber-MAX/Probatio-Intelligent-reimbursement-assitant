@@ -1,7 +1,7 @@
 [project]
 name = "intelligent-reimbursement-assitant"
 version = "0.1.0"
-description = "Agentic RAG for reimbursement policies and cited question answering"
+description = "Agentic RAG assistant for reimbursement policies and cited answers"
 readme = "README.md"
 authors = [
     { name = "陈锴", email = "1950846843@qq.com" }
@@ -51,6 +51,7 @@ build-backend = "uv_build"
 dev = [
     "import-linter>=2.15",
     "pyright>=1.1.414",
+    "pytest>=9.1.1",
     "ruff>=0.16.10",
 ]
 
@@ -78,7 +79,7 @@ name = "Prevent package dependency cycles"
 type = "acyclic_siblings"
 ancestors = ["intelligent_reimbursement_assitant"]
 
-# Use CPU PyTorch packages on Linux.
+# Linux workers use CPU PyTorch wheels.
 [[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"

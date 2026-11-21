@@ -1,5 +1,5 @@
 x-app: &app
-  image: ${IRA_IMAGE_PREFIX:-probatio}-app:${RELEASE_TAG:?RELEASE_TAG is required}
+  image: ${IRA_IMAGE_PREFIX:-ira}-app:${RELEASE_TAG:?RELEASE_TAG is required}
   platform: linux/amd64
   init: true
   restart: unless-stopped
@@ -78,7 +78,7 @@ services:
       retries: 30
 
   elasticsearch:
-    image: ${IRA_IMAGE_PREFIX:-probatio}-elasticsearch:${RELEASE_TAG:?RELEASE_TAG is required}
+    image: ${IRA_IMAGE_PREFIX:-ira}-elasticsearch:${RELEASE_TAG:?RELEASE_TAG is required}
     platform: linux/amd64
     build: deploy/elasticsearch
     restart: unless-stopped
@@ -97,7 +97,7 @@ services:
       start_period: 30s
 
   prepare-storage:
-    image: ${IRA_IMAGE_PREFIX:-probatio}-app:${RELEASE_TAG:?RELEASE_TAG is required}
+    image: ${IRA_IMAGE_PREFIX:-ira}-app:${RELEASE_TAG:?RELEASE_TAG is required}
     platform: linux/amd64
     init: true
     restart: "no"
@@ -109,7 +109,7 @@ services:
       - scanner-socket:/run/clamav
 
   scanner:
-    image: ${IRA_IMAGE_PREFIX:-probatio}-scanner:${RELEASE_TAG:?RELEASE_TAG is required}
+    image: ${IRA_IMAGE_PREFIX:-ira}-scanner:${RELEASE_TAG:?RELEASE_TAG is required}
     platform: linux/amd64
     build: deploy/scanner
     restart: unless-stopped
@@ -217,7 +217,7 @@ services:
       - managed-data:/data/managed
 
   web:
-    image: ${IRA_IMAGE_PREFIX:-probatio}-web:${RELEASE_TAG:?RELEASE_TAG is required}
+    image: ${IRA_IMAGE_PREFIX:-ira}-web:${RELEASE_TAG:?RELEASE_TAG is required}
     platform: linux/amd64
     build:
       context: .
@@ -228,7 +228,7 @@ services:
         condition: service_healthy
     ports:
       - target: 80
-        published: "${WEB_PORT:-8080}"
+        published: "${WEB_PORT:-${IRA_DEFAULT_WEB_PORT:-8080}}"
         host_ip: ${WEB_BIND_HOST:-127.0.0.1}
     healthcheck:
       test: [CMD, wget, --quiet, --spider, 'http://127.0.0.1/']

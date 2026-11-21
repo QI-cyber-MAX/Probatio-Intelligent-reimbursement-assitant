@@ -1,4 +1,4 @@
-"""File upload, scanning and artifact contracts."""
+"""Upload policies, quarantined files and scan results."""
 
 from enum import StrEnum
 from typing import Literal, Self

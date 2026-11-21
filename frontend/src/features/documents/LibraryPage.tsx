@@ -18,29 +18,35 @@ import { DocumentList } from "./DocumentList";
 import { useIngestionJobs } from "./useIngestionJobs";
 import { IngestionSubscription } from "./IngestionSubscription";
 import { UploadPolicyForm } from "./UploadPolicyForm";
+import { BatchUploadPolicyForm } from "./BatchUploadPolicyForm";
+import { usePolicyUploadQueue } from "./usePolicyUploadQueue";
 import { statusLabels } from "./job-labels";
 
 export function LibraryPage({
   base,
   navigateToChat,
+  setLeaveGuard,
 }: {
   base: KnowledgeBaseItem;
   navigateToChat(): void;
+  setLeaveGuard(guard: (() => boolean) | null): void;
 }) {
   const [candidates, setCandidates] = useState<DocumentItem[]>([]);
   const [documents, setDocuments] = useState<DocumentView[]>([]);
   const [failures, setFailures] = useState<Record<string, unknown>>({});
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
-  const [revision, setRevision] = useState(0);
+  const refreshRequest = useRef<(() => void) | null>(null);
   const [uploading, setUploading] = useState(false);
   const [accepted, setAccepted] = useState<IngestionAccepted | null>(null);
-  const [acceptedError, setAcceptedError] = useState<unknown>(null);
+  const [receiptErrors, setReceiptErrors] = useState<Record<string, unknown>>({});
+  const receiptReads = useRef(new Map<string, AbortController>());
+  const [batchOpen, setBatchOpen] = useState(false);
   const [priority, setPriority] = useState<string[]>([]);
   const [announcement, setAnnouncement] = useState("");
   const [storageWarning, setStorageWarning] = useState(false);
   const located = useRef<string | null>(null);
-  const reload = useCallback(() => setRevision((value) => value + 1), []);
+  const reload = useCallback(() => refreshRequest.current?.(), []);
   const storageUnavailable = useCallback(() => setStorageWarning(true), []);
   useEffect(() => {
     window.addEventListener("focus", reload);
@@ -48,55 +54,64 @@ export function LibraryPage({
   }, [reload]);
   useEffect(() => {
     const controller = new AbortController();
+    let inFlight = false;
+    let reread = false;
     async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const items = await listDocuments(base.kb_id, controller.signal);
-        if (controller.signal.aborted) return;
-        setCandidates(items);
-        setFailures({});
-        setDocuments((previous) =>
-          previous.filter((doc) =>
-            items.some((item) => item.document_id === doc.document_id),
-          ),
-        );
-        let next = 0;
-        await Promise.all(
-          Array.from({ length: Math.min(4, items.length) }, async () => {
-            while (next < items.length && !controller.signal.aborted) {
-              const item = items[next++]!;
-              try {
-                const doc = await getDocument(
-                  item.document_id,
-                  controller.signal,
-                );
-                if (!controller.signal.aborted)
-                  setDocuments((previous) => [
-                    ...previous.filter(
-                      (value) => value.document_id !== doc.document_id,
-                    ),
-                    doc,
-                  ]);
-              } catch (failure) {
-                if (!controller.signal.aborted)
-                  setFailures((previous) => ({
-                    ...previous,
-                    [item.document_id]: failure,
-                  }));
+      if (inFlight) { reread = true; return; }
+      inFlight = true;
+      do {
+        reread = false;
+        setLoading(true);
+        setError(null);
+        try {
+          const items = await listDocuments(base.kb_id, controller.signal);
+          if (controller.signal.aborted) return;
+          setCandidates(items);
+          setFailures({});
+          setDocuments((previous) =>
+            previous.filter((doc) =>
+              items.some((item) => item.document_id === doc.document_id),
+            ),
+          );
+          let next = 0;
+          await Promise.all(
+            Array.from({ length: Math.min(4, items.length) }, async () => {
+              while (next < items.length && !controller.signal.aborted) {
+                const item = items[next++]!;
+                try {
+                  const doc = await getDocument(
+                    item.document_id,
+                    controller.signal,
+                  );
+                  if (!controller.signal.aborted)
+                    setDocuments((previous) => [
+                      ...previous.filter(
+                        (value) => value.document_id !== doc.document_id,
+                      ),
+                      doc,
+                    ]);
+                } catch (failure) {
+                  if (!controller.signal.aborted)
+                    setFailures((previous) => ({
+                      ...previous,
+                      [item.document_id]: failure,
+                    }));
+                }
               }
-            }
-          }),
-        );
-      } catch (failure) {
-        if (!controller.signal.aborted) setError(failure);
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
+            }),
+          );
+        } catch (failure) {
+          if (!controller.signal.aborted) setError(failure);
+        } finally {
+          if (!controller.signal.aborted) setLoading(false);
+        }
+      } while (reread && !controller.signal.aborted);
+      inFlight = false;
     }
+    refreshRequest.current = () => { void load(); };
     void load();
-    return () => controller.abort();
-  }, [base.kb_id, revision]);
+    return () => { controller.abort(); refreshRequest.current = null; };
+  }, [base.kb_id]);
   const jobs = useIngestionJobs(
     documents,
     priority,
@@ -116,36 +131,48 @@ export function LibraryPage({
     },
     [snapshot, reload],
   );
-  const onAccepted = useCallback(
-    (value: IngestionAccepted) => {
-      setAccepted(value);
-      setAcceptedError(null);
-      setUploading(false);
-      setPriority((previous) => [
-        value.job_id,
-        ...previous.filter((id) => id !== value.job_id),
-      ]);
-      setAnnouncement("原件已受理，正在读取处理状态。");
-      reload();
-    },
-    [reload],
-  );
-  const acceptedId = accepted?.job_id;
   useEffect(() => {
-    if (!accepted) return;
+    const reads = receiptReads.current;
+    return () => { for (const controller of reads.values()) controller.abort(); reads.clear(); };
+  }, []);
+  const readReceipt = useCallback((value: IngestionAccepted) => {
+    if (receiptReads.current.has(value.job_id)) return;
     const controller = new AbortController();
-    void getAcceptedJob(accepted, controller.signal)
-      .then((value) => {
-        if (!controller.signal.aborted) {
-          snapshot(value);
-          setAcceptedError(null);
-        }
-      })
-      .catch((failure) => {
-        if (!controller.signal.aborted) setAcceptedError(failure);
-      });
-    return () => controller.abort();
-  }, [accepted, snapshot, revision]);
+    receiptReads.current.set(value.job_id, controller);
+    void getAcceptedJob(value, controller.signal).then((view) => {
+      if (!controller.signal.aborted) {
+        snapshot(view);
+        setReceiptErrors((previous) => { const next = { ...previous }; delete next[value.job_id]; return next; });
+      }
+    }).catch((failure) => {
+      if (!controller.signal.aborted) setReceiptErrors((previous) => ({ ...previous, [value.job_id]: failure }));
+    }).finally(() => { if (receiptReads.current.get(value.job_id) === controller) receiptReads.current.delete(value.job_id); });
+  }, [snapshot]);
+  const recordAccepted = useCallback((value: IngestionAccepted) => {
+    setPriority((previous) => [value.job_id, ...previous.filter((id) => id !== value.job_id)]);
+    setAnnouncement("原件已受理，正在读取处理状态。");
+    readReceipt(value);
+    reload();
+  }, [readReceipt, reload]);
+  const locateAccepted = useCallback((value: IngestionAccepted) => {
+    located.current = null;
+    setAccepted(value);
+  }, []);
+  const onAccepted = useCallback((value: IngestionAccepted) => {
+    recordAccepted(value);
+    setUploading(false);
+    locateAccepted(value);
+  }, [recordAccepted, locateAccepted]);
+  const queue = usePolicyUploadQueue(base.kb_id, candidates, recordAccepted);
+  useEffect(() => {
+    setLeaveGuard(() => !queue.hasPending || window.confirm(
+      `离开将结束本页文件队列；已受理任务继续处理，其余文件需重新选择。${queue.running ? "当前上传结果可能未确认，请在原件列表核对。" : ""}确定离开？`,
+    ));
+    const beforeUnload = (event: BeforeUnloadEvent) => { if (queue.hasPending) { event.preventDefault(); event.returnValue = ""; } };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => { setLeaveGuard(null); window.removeEventListener("beforeunload", beforeUnload); };
+  }, [queue.hasPending, queue.running, setLeaveGuard]);
+  const acceptedId = accepted?.job_id;
   useEffect(() => {
     if (!accepted || located.current === accepted.job_id) return;
     const element = document.getElementById(
@@ -182,6 +209,10 @@ export function LibraryPage({
             知识库与制度
           </h1>
         </div>
+        <div className="upload-actions">
+        <button type="button" className="button secondary" disabled={(!candidates.length && loading) || error !== null} onClick={() => setBatchOpen(true)}>
+          批量上传制度{queue.rows.length ? `（${queue.rows.length}）` : ""}
+        </button>
         <button
           type="button"
           className="button primary"
@@ -191,6 +222,7 @@ export function LibraryPage({
           <Icon name="upload" />
           上传制度
         </button>
+        </div>
       </div>
       <div className="library-summary">
         <div>
@@ -241,8 +273,8 @@ export function LibraryPage({
           ；处理结果以下方原件状态为准。
         </p>
       )}
-      {acceptedError !== null && (
-        <ErrorNotice error={acceptedError} retry={reload} />
+      {accepted && receiptErrors[accepted.job_id] !== undefined && (
+        <ErrorNotice error={receiptErrors[accepted.job_id]} retry={() => readReceipt(accepted)} />
       )}
       {error !== null && <ErrorNotice error={error} retry={reload} />}
       {loading && !candidates.length && (
@@ -301,6 +333,9 @@ export function LibraryPage({
       {jobs.subscribed.map((id) => (
         <IngestionSubscription key={id} id={id} jobs={jobs} />
       ))}
+      {batchOpen && <BatchUploadPolicyForm base={base} candidates={candidates} queue={queue} tracking={jobs.tracking} receiptErrors={receiptErrors}
+        onClose={() => setBatchOpen(false)} onReload={reload} onRead={readReceipt}
+        onView={(value) => { setBatchOpen(false); locateAccepted(value); reload(); }} />}
       {uploading && (
         <UploadPolicyForm
           base={base}

@@ -1,4 +1,4 @@
-"""Concurrent model proposals, one owner of admission and tool execution.
+"""Concurrent model proposals with one owner of admission and tool execution.
 
 The caller must reliably save every yielded state before advancing the iterator.
 Use contextlib.aclosing so a save failure settles outstanding requests before
